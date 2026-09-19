@@ -1,57 +1,50 @@
-name: End-to-End CI/CD — Java / Maven / SonarQube / K8s
+name: End to End CI/CD workflow for Java Applicaton with Maven, Sonar and k8s Intergation
 
 on:
   push:
     branches:
       - main
-  pull_request:  # Optional: run analysis on PRs too
 
 env:
-  JAVA_VERSION: '17'  # LTS — recommended over 12 (EOL)
   KUBECONFIG: ${{ secrets.KUBECONFIG }}
   SONAR_TOKEN: ${{ secrets.SONAR_TKN }}
 
 jobs:
-  build-and-analyse:
-    name: Build, Test & SonarQube Analysis
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4  # v4 — latest, maintained
-        with:
-          fetch-depth: 0  # Required for full Sonar blame/history
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Set up Java JDK
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'  # Eclipse Temurin — official, free LTS
-          cache: 'maven'  # Caches ~/.m2 — drastically speeds up runs
+    - name: Java jdk setup
+      uses: actions/setup-java@v1
+      with:
+        java-version: 12
 
-      - name: Build & Test with Maven
-        run: mvn clean verify --batch-mode
+    - name: maven target # change accordingly
+      run: mvn clean install
 
-      - name: SonarQube Cloud Analysis
-        uses: sonarsource/sonarcloud-github-action@v3  # v3 — current stable
-        with:
-          organization: <your-sonar-organisation>
-          projectKey: <your-project-key>
-          projectName: <your-project-name>
-        env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+    - name: Perform analysis on Sonar Qube
+      uses: sonarsource/sonarcloud-github-action@v1
+      with:
+        sonarcloud.organization: <name of your org>
+        sonarcloud.projectKey: <key>
+        sonarcloud.projectName: <name>
+        sonarcloud.token: ${{ env.SONAR_TKN }}
+        sonarcloud.scannerVersion: "4.2.0.1873"
 
-  deploy-to-k8s:
-    name: Deploy to Kubernetes
-    needs: build-and-analyse
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
-    environment: production  # Optional: protect with approvals
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Deploy manifests to Kubernetes
-        uses: stefanzweifel/k8s-action@v2.0.0
-        with:
-          args: apply -f kubernetes/
-        env:
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Deploy to k8s
+      uses: stefanzweifel/k8s-action@v2.0.0
+      with:
+        args: apply -f kubernetes/
+      env:
+        KUBECONFIG: ${{ env.KUBECONFIG }}
